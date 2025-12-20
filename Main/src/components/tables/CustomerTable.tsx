@@ -8,15 +8,14 @@ export type Customer = {
   name: string;
   email: string | null;
   phone: string | null;
-  address: string | null;
-  company: string | null;
-  notes: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;  // ✅ Hanya field yang tersedia
+  // ❌ Tidak ada: address, company, notes, updatedAt
   vehicles?: Array<{
     id: number;
     plate: string;
+    brand: string;
     model: string;
+    year: number;
   }>;
   _count?: {
     vehicles: number;
@@ -56,22 +55,37 @@ export default function CustomerTable({
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+  const formatDate = (date: Date | string) => {
+    if (!date) return "-";
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      // Cek jika date valid
+      if (isNaN(dateObj.getTime())) return "-";
+      return dateObj.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return "-";
+    }
   };
 
-  const formatDateTime = (date: Date) => {
-    return new Date(date).toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatDateTime = (date: Date | string) => {
+    if (!date) return "-";
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      if (isNaN(dateObj.getTime())) return "-";
+      return dateObj.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "-";
+    }
   };
 
   if (isLoading) {
@@ -85,9 +99,6 @@ export default function CustomerTable({
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Kontak
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Perusahaan
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Kendaraan
@@ -113,9 +124,6 @@ export default function CustomerTable({
                     <div className="h-3 bg-slate-200 rounded w-24"></div>
                     <div className="h-3 bg-slate-200 rounded w-32"></div>
                   </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="h-4 bg-slate-200 rounded w-20"></div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="h-6 bg-slate-200 rounded-full w-8"></div>
@@ -170,9 +178,6 @@ export default function CustomerTable({
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Kontak
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Perusahaan
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Kendaraan
@@ -235,13 +240,6 @@ export default function CustomerTable({
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-900">
-                    {customer.company || (
-                      <span className="text-slate-400 italic">-</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {customer._count?.vehicles || customer.vehicles?.length || 0} kendaraan
@@ -258,9 +256,7 @@ export default function CustomerTable({
                   <div className="text-sm text-slate-900" title={formatDateTime(customer.createdAt)}>
                     {formatDate(customer.createdAt)}
                   </div>
-                  <div className="text-xs text-slate-500">
-                    {customer.updatedAt.getTime() !== customer.createdAt.getTime() ? "Diperbarui" : "Baru"}
-                  </div>
+                  {/* ❌ Tidak ada info "Diperbarui" karena tidak ada updatedAt field */}
                 </td>
                 {showActions && (
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

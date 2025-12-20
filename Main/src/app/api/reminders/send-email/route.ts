@@ -1,168 +1,332 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/email';
+// app/api/reminders/send-email/route.ts
+import { NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(req: NextRequest) {
-  try {
-    // Ambil data dari API internal
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${origin}/api/reminders/due`, { cache: 'no-store' });
-    const data = await res.json();
+// Helper function untuk menghitung hari
+function daysBetween(a: Date, b: Date) {
+  return Math.floor(Math.abs(+a - +b) / 86_400_000);
+}
 
-    const { due, soon } = data;
+// Simpan konfigurasi transporter global
+let transporter: nodemailer.Transporter | null = null;
 
-    // Format HTML email
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Laporan Pengingat Servis Berkala</title>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
-            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; }
-            .section { margin-bottom: 30px; }
-            .section-title { color: #374151; font-size: 20px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid; }
-            .section-red .section-title { border-color: #ef4444; }
-            .section-yellow .section-title { border-color: #f59e0b; }
-            table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-            th { background: #f3f4f6; padding: 12px 15px; text-align: left; font-weight: 600; color: #4b5563; border-bottom: 2px solid #e5e7eb; }
-            td { padding: 12px 15px; border-bottom: 1px solid #e5e7eb; }
-            tr:last-child td { border-bottom: none; }
-            .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
-            .badge-red { background: #fee2e2; color: #dc2626; }
-            .badge-yellow { background: #fef3c7; color: #d97706; }
-            .badge-blue { background: #dbeafe; color: #2563eb; }
-            .summary { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-            .summary-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-            .summary-item:last-child { border-bottom: none; }
-            .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1 style="margin: 0; font-size: 28px;">📅 Laporan Pengingat Servis Berkala</h1>
-              <p style="margin: 10px 0 0; opacity: 0.9;">${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            </div>
-            
-            <div class="content">
-              <div class="summary">
-                <h3 style="margin-top: 0; color: #374151;">📊 Ringkasan Laporan</h3>
-                <div class="summary-item">
-                  <span>Total Kendaraan:</span>
-                  <strong>${due.length + soon.length} kendaraan</strong>
-                </div>
-                <div class="summary-item">
-                  <span>Sudah Jatuh Tempo:</span>
-                  <strong style="color: #dc2626;">${due.length} kendaraan</strong>
-                </div>
-                <div class="summary-item">
-                  <span>Segera Jatuh Tempo:</span>
-                  <strong style="color: #d97706;">${soon.length} kendaraan</strong>
-                </div>
-              </div>
-
-              ${due.length > 0 ? `
-                <div class="section section-red">
-                  <h2 class="section-title">🚨 Sudah Jatuh Tempo (${due.length})</h2>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Plat</th>
-                        <th>Pelanggan</th>
-                        <th>Terakhir Servis</th>
-                        <th>Hari Sejak</th>
-                        <th>Interval</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${due.map((item: any) => `
-                        <tr>
-                          <td><strong>${item.plate}</strong></td>
-                          <td>${item.customer}</td>
-                          <td>${item.lastServiceDate ? new Date(item.lastServiceDate).toLocaleDateString('id-ID') : '-'}</td>
-                          <td><span class="badge badge-red">${item.daysSince || 0} hari</span></td>
-                          <td><span class="badge badge-blue">${item.intervalDays} hari</span></td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              ` : ''}
-
-              ${soon.length > 0 ? `
-                <div class="section section-yellow">
-                  <h2 class="section-title">⚠️ Segera Jatuh Tempo (${soon.length})</h2>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Plat</th>
-                        <th>Pelanggan</th>
-                        <th>Terakhir Servis</th>
-                        <th>Hari Sejak</th>
-                        <th>Interval</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${soon.map((item: any) => `
-                        <tr>
-                          <td><strong>${item.plate}</strong></td>
-                          <td>${item.customer}</td>
-                          <td>${item.lastServiceDate ? new Date(item.lastServiceDate).toLocaleDateString('id-ID') : '-'}</td>
-                          <td><span class="badge badge-yellow">${item.daysSince || 0} hari</span></td>
-                          <td><span class="badge badge-blue">${item.intervalDays} hari</span></td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              ` : ''}
-
-              <div class="footer">
-                <p>Laporan ini dibuat otomatis oleh Sistem Pengingat Servis Kendaraan</p>
-                <p>© ${new Date().getFullYear()} - Semua hak dilindungi</p>
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Konfigurasi email
-    // Ganti dengan email penerima yang sesuai
-    const recipientEmail = process.env.EMAIL_RECIPIENT || 'admin@example.com';
-
-    // Kirim email
-    await sendEmail({
-      to: recipientEmail,
-      subject: `📅 Laporan Pengingat Servis Berkala - ${new Date().toLocaleDateString('id-ID')}`,
-      html: htmlContent,
-      cc: process.env.EMAIL_CC?.split(','),
-      bcc: process.env.EMAIL_BCC?.split(',')
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.GMAIL_USER || 'syswebappnoreply@gmail.com',
+        pass: process.env.GMAIL_APP_PASSWORD
+      }
     });
+  }
+  return transporter;
+}
 
-    return NextResponse.json({
-      success: true,
-      message: 'Email berhasil dikirim',
-      data: {
-        totalDue: due.length,
-        totalSoon: soon.length,
-        recipient: recipientEmail
+export async function POST() {
+  try {
+    console.log('📧 Memulai pengiriman email reminder ke pelanggan yang perlu servis...');
+
+    // Gunakan logika yang sama dengan GET /api/reminders/due
+    const today = new Date();
+    const within = 30; // Sama dengan default di API reminders/due
+
+    // Ambil data kendaraan yang perlu servis
+    const vehicles = await prisma.vehicle.findMany({
+      include: {
+        customer: true,
+        services: { 
+          orderBy: { date: "desc" }, 
+          take: 1 
+        },
+      },
+      where: {
+        customer: {
+          email: { not: null } // Hanya kendaraan milik pelanggan yang punya email
+        }
       }
     });
 
-  } catch (error) {
-    console.error('Error sending email:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Gagal mengirim email',
-        error: process.env.NODE_ENV === 'development' ? error : undefined
+    console.log(`📊 Ditemukan ${vehicles.length} kendaraan untuk diproses`);
+
+    // Filter kendaraan yang statusnya "due" atau "soon"
+    const vehiclesNeedingAttention = vehicles.map(v => {
+      const last = v.services[0]?.date ?? null;
+      const interval = v.serviceIntervalDays ?? 180;
+      const since = last ? daysBetween(today, last) : Infinity;
+
+      let status: "ok" | "soon" | "due" = "ok";
+      if (!last || since >= interval) status = "due";
+      else if (since >= Math.max(0, interval - within)) status = "soon";
+
+      return {
+        ...v,
+        status,
+        daysSince: isFinite(since) ? since : null,
+        intervalDays: interval
+      };
+    }).filter(v => v.status === "due" || v.status === "soon");
+
+    console.log(`🎯 ${vehiclesNeedingAttention.length} kendaraan perlu perhatian`);
+
+    if (vehiclesNeedingAttention.length === 0) {
+      return NextResponse.json({ 
+        success: true,
+        message: 'Tidak ada kendaraan yang perlu dikirim reminder servis saat ini',
+        totalVehicles: 0,
+        totalCustomers: 0,
+        sent: 0,
+        failed: 0
+      });
+    }
+
+    // Kelompokkan kendaraan berdasarkan pelanggan
+    const customersMap = new Map();
+    
+    for (const vehicle of vehiclesNeedingAttention) {
+      const customerId = vehicle.customer.id;
+      
+      if (!customersMap.has(customerId)) {
+        customersMap.set(customerId, {
+          customer: vehicle.customer,
+          vehicles: []
+        });
+      }
+      
+      customersMap.get(customerId).vehicles.push({
+        plate: vehicle.plate,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        year: vehicle.year,
+        lastServiceDate: vehicle.services[0]?.date || null,
+        daysSince: vehicle.daysSince,
+        intervalDays: vehicle.intervalDays,
+        status: vehicle.status
+      });
+    }
+
+    const customersToNotify = Array.from(customersMap.values());
+    
+    console.log(`👥 ${customersToNotify.length} pelanggan akan dikirim email`);
+
+    const transporter = getTransporter();
+    const results = [];
+
+    // Kirim email ke setiap pelanggan
+    for (const { customer, vehicles } of customersToNotify) {
+      if (!customer.email) continue;
+
+      // Hitung jumlah kendaraan per status
+      const dueCount = vehicles.filter(v => v.status === "due").length;
+      const soonCount = vehicles.filter(v => v.status === "soon").length;
+
+      const mailOptions = {
+        from: `"Bengkel Fantasi Jaya" <${process.env.GMAIL_USER || 'syswebappnoreply@gmail.com'}>`,
+        to: customer.email,
+        subject: `⏰ ${dueCount > 0 ? 'URGENT: ' : ''}Pengingat Servis Kendaraan - ${customer.name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #2563eb; margin-bottom: 5px;">BengkelFantasi Jaya</h1>
+              <p style="color: #64748b; font-size: 14px;">Bengkel Terpercaya Anda</p>
+            </div>
+            
+            <div style="background-color: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+              <h2 style="color: #1e293b; margin-bottom: 15px;">Pengingat Servis Berkala Kendaraan</h2>
+              
+              <p>Halo <strong>${customer.name}</strong>,</p>
+              
+              <p>Berdasarkan catatan kami, berikut status kendaraan Anda:</p>
+              
+              ${dueCount > 0 ? `
+                <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+                  <p style="color: #dc2626; margin: 0; font-weight: bold;">
+                    ⚠️ <strong>${dueCount} KENDARAAN SUDAH JATUH TEMPO SERVIS!</strong>
+                  </p>
+                  <p style="color: #7f1d1d; margin: 5px 0 0 0; font-size: 14px;">
+                    Segera hubungi bengkel kami untuk penjadwalan servis.
+                  </p>
+                </div>
+              ` : ''}
+              
+              ${soonCount > 0 ? `
+                <div style="background-color: #fef3c7; border-left: 4px solid #d97706; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+                  <p style="color: #92400e; margin: 0; font-weight: bold;">
+                    📅 <strong>${soonCount} KENDARAAN SEGERA JATUH TEMPO</strong>
+                  </p>
+                  <p style="color: #78350f; margin: 5px 0 0 0; font-size: 14px;">
+                    Waktunya menjadwalkan servis berkala.
+                  </p>
+                </div>
+              ` : ''}
+              
+              <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #f8fafc; border-radius: 6px; overflow: hidden;">
+                <thead>
+                  <tr style="background-color: #1e40af; color: white;">
+                    <th style="padding: 12px; text-align: left;">Kendaraan</th>
+                    <th style="padding: 12px; text-align: left;">Plat</th>
+                    <th style="padding: 12px; text-align: left;">Terakhir Servis</th>
+                    <th style="padding: 12px; text-align: left;">Interval</th>
+                    <th style="padding: 12px; text-align: left;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${vehicles.map(vehicle => {
+                    const statusText = vehicle.status === "due" ? 
+                      `<span style="color: #dc2626; font-weight: bold;">⏰ JATUH TEMPO</span>` : 
+                      `<span style="color: #d97706;">📅 SEGERA</span>`;
+                    
+                    const lastServiceText = vehicle.lastServiceDate ? 
+                      new Date(vehicle.lastServiceDate).toLocaleDateString('id-ID') : 
+                      "Belum pernah";
+                    
+                    const progress = vehicle.lastServiceDate && vehicle.intervalDays ? 
+                      Math.min(100, Math.round((vehicle.daysSince! / vehicle.intervalDays) * 100)) : 0;
+                    
+                    const progressColor = vehicle.status === "due" ? "#dc2626" : "#d97706";
+                    
+                    return `
+                      <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 12px;">${vehicle.brand} ${vehicle.model} (${vehicle.year})</td>
+                        <td style="padding: 12px; font-weight: bold;">${vehicle.plate}</td>
+                        <td style="padding: 12px;">${lastServiceText}</td>
+                        <td style="padding: 12px;">${vehicle.intervalDays} hari</td>
+                        <td style="padding: 12px;">
+                          ${statusText}
+                          ${vehicle.lastServiceDate ? `
+                            <div style="margin-top: 5px; font-size: 12px; color: #64748b;">
+                              ${vehicle.daysSince} hari sejak servis terakhir (${progress}% dari interval)
+                            </div>
+                          ` : ''}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+              
+              <div style="background-color: #dbeafe; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <h3 style="color: #1e40af; margin-top: 0;">🎯 Tindakan yang Disarankan:</h3>
+                <ul style="margin: 10px 0; padding-left: 20px; color: #1e293b;">
+                  ${dueCount > 0 ? `<li><strong>Hubungi kami segera</strong> untuk servis kendaraan yang sudah jatuh tempo</li>` : ''}
+                  ${soonCount > 0 ? `<li><strong>Jadwalkan servis</strong> untuk kendaraan yang segera jatuh tempo</li>` : ''}
+                </ul>
+              </div>
+              
+              <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+                Servis berkala penting untuk menjaga performa dan keamanan kendaraan Anda, 
+                serta menghindari kerusakan yang lebih serius di masa depan.
+              </p>
+              
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;">
+              
+              <div style="text-align: center; color: #64748b; font-size: 12px;">
+                <p style="margin: 5px 0;">
+                  <strong>Fantasi Jaya Sys</strong><br>
+                  Buka: Senin-Jumat 08:00-17:00, Sabtu 08:00-13:00
+                </p>
+                <p style="margin: 5px 0; font-size: 11px;">
+                  Email ini dikirim otomatis. Untuk berhenti menerima email reminder, 
+                  <a href="mailto:admin@fantasijayasys.com" style="color: #3b82f6;">hubungi admin</a>.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `Pengingat Servis Kendaraan - ${customer.name}
+
+${dueCount > 0 ? `⚠️ ${dueCount} KENDARAAN SUDAH JATUH TEMPO SERVIS!\nSegera hubungi bengkel kami untuk penjadwalan servis.\n` : ''}
+${soonCount > 0 ? `📅 ${soonCount} KENDARAAN SEGERA JATUH TEMPO\nWaktunya menjadwalkan servis berkala.\n` : ''}
+
+DETAIL KENDARAAN:
+${vehicles.map(v => `• ${v.brand} ${v.model} (${v.plate})
+  - Terakhir servis: ${v.lastServiceDate ? new Date(v.lastServiceDate).toLocaleDateString('id-ID') : 'Belum pernah'}
+  - Interval: ${v.intervalDays} hari
+  - Status: ${v.status === 'due' ? 'JATUH TEMPO' : 'SEGERA JATUH TEMPO'}
+  - ${v.daysSince ? `${v.daysSince} hari sejak servis terakhir` : ''}\n`).join('')}
+
+TINDAKAN YANG DISARANKAN:
+${dueCount > 0 ? '• Hubungi kami segera untuk servis kendaraan yang sudah jatuh tempo\n' : ''}
+${soonCount > 0 ? '• Jadwalkan servis untuk kendaraan yang segera jatuh tempo\n' : ''}
+
+Servis berkala penting untuk menjaga performa dan keamanan kendaraan Anda.
+
+--
+Bengkel Fantasi Jaya 
+Email otomatis. Untuk berhenti menerima: hubungi admin@fantasijayasys.com`
+      };
+
+      try {
+        const info = await transporter.sendMail(mailOptions);
+        results.push({ 
+          customerId: customer.id,
+          customerName: customer.name, 
+          email: customer.email, 
+          success: true,
+          vehiclesCount: vehicles.length,
+          dueCount,
+          soonCount
+        });
+        console.log(`✅ Email terkirim ke: ${customer.name} (${customer.email}) - ${vehicles.length} kendaraan`);
+      } catch (error: any) {
+        results.push({ 
+          customerId: customer.id,
+          customerName: customer.name, 
+          email: customer.email, 
+          success: false,
+          error: error.message 
+        });
+        console.error(`❌ Gagal ke ${customer.email}:`, error.message);
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const totalVehicles = vehiclesNeedingAttention.length;
+    
+    return NextResponse.json({ 
+      success: successCount > 0,
+      message: `Berhasil mengirim email ke ${successCount} dari ${customersToNotify.length} pelanggan`,
+      summary: {
+        totalVehicles,
+        totalCustomers: customersToNotify.length,
+        customersWithEmail: customersToNotify.filter(c => c.customer.email).length,
+        sent: successCount,
+        failed: results.length - successCount,
+        dueVehicles: vehiclesNeedingAttention.filter(v => v.status === "due").length,
+        soonVehicles: vehiclesNeedingAttention.filter(v => v.status === "soon").length
       },
-      { status: 500 }
-    );
+      results: results
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error utama:', error);
+    
+    // Cek error Gmail
+    let errorMessage = 'Gagal mengirim email reminder';
+    if (error.code === 'EAUTH') {
+      errorMessage = 'Error autentikasi Gmail. Periksa GMAIL_USER dan GMAIL_APP_PASSWORD di .env.local';
+    } else if (error.code === 'ENOTFOUND') {
+      errorMessage = 'Tidak bisa terhubung ke server Gmail. Periksa koneksi internet.';
+    } else if (error.message?.includes('prisma')) {
+      errorMessage = 'Error database. Pastikan koneksi database berjalan.';
+    }
+    
+    return NextResponse.json({ 
+      success: false,
+      error: errorMessage,
+      details: error.message 
+    }, { status: 500 });
   }
+}
+
+// Handler untuk GET request
+export async function GET() {
+  return NextResponse.json({ 
+    error: 'Method GET tidak didukung',
+    message: 'Gunakan POST request untuk mengirim email reminder',
+    example: 'fetch("/api/reminders/send-email", { method: "POST" })'
+  }, { status: 405 });
 }

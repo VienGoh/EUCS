@@ -4,7 +4,7 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "ESNext"
+      "ES2022"
     ],
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -16,6 +16,7 @@
     "allowJs": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    // Base configuration
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -23,29 +24,39 @@
       ],
       "@lib/*": [
         "./src/lib/*"
-      ] // ⬅️ penting untuk import { auth } from "@lib/auth"
+      ]
     },
+    // Type checking
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types"
+    ],
+    "types": [
+      "node",
+      "next",
+      "next-auth"
+    ],
+    // Plugins
     "plugins": [
       {
         "name": "next"
       }
     ],
-    "incremental": true,
+    // Module resolution
     "resolveJsonModule": true,
-    // (opsional, tapi membantu VSCode kenali tipe session.role)
-    "types": [
-      "next-auth",
-      "./src/types/next-auth"
-    ]
+    "incremental": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleDetection": "force"
   },
   "include": [
     "next-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     ".next/types/**/*.ts",
-    "src/middleware.ts",
-    ".next/dev/types/**/*.ts",
-    ".next/dev/dev/types/**/*.ts"
+    "types/**/*.d.ts", // Tambahkan ini untuk custom types
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

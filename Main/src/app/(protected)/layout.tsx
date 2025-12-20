@@ -20,7 +20,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
                 {session.user.email} · <b>{session.user.role}</b>
               </span>
               <form action="/api/auth/signout" method="post">
-                <input type="hidden" name="callbackUrl" value="/public/login" />
+                <input type="hidden" name="callbackUrl" value="/login" />
                 <button className="rounded-lg border px-3 py-1 text-sm">Logout</button>
               </form>
             </div>

@@ -1,18 +1,66 @@
-import Link from "next/link";
+"use client";
+
+import { useState } from "react";
 
 export const dynamic = "force-dynamic";
 
-async function load(origin: string) {
-  const res = await fetch(`${origin}/api/reminders/due`, { cache: "no-store" });
+async function load() {
+  const res = await fetch(`/api/reminders/due`, { cache: "no-store" });
   return (await res.json()) as {
     due: Array<{ plate: string; customer: string; lastServiceDate: string | null; daysSince: number | null; intervalDays: number; }>;
     soon: Array<{ plate: string; customer: string; lastServiceDate: string | null; daysSince: number | null; intervalDays: number; }>;
   };
 }
 
-export default async function Page() {
-  const origin = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-  const { due, soon } = await load(origin);
+export default function Page() {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<{ due: any[], soon: any[] } | null>(null);
+  const [emailResult, setEmailResult] = useState<{ success?: boolean; message?: string } | null>(null);
+
+  // Load data on component mount
+  useState(() => {
+    load().then(setData);
+  });
+
+  const sendReminderEmails = async () => {
+    if (!window.confirm("Kirim email reminder ke semua pelanggan?\nPastikan Gmail App Password sudah dikonfigurasi.")) {
+      return;
+    }
+
+    setLoading(true);
+    setEmailResult(null);
+
+    try {
+      const response = await fetch('/api/reminders/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setEmailResult({ 
+          success: true, 
+          message: result.message || `Berhasil mengirim ${result.sent || 0} email` 
+        });
+        alert(`✅ ${result.message}\n\nTotal: ${result.totalCustomers}\nBerhasil: ${result.sent}\nGagal: ${result.failed}`);
+      } else {
+        setEmailResult({ 
+          success: false, 
+          message: result.error || 'Gagal mengirim email' 
+        });
+        alert(`❌ ${result.error || 'Gagal mengirim email'}`);
+      }
+    } catch (error: any) {
+      setEmailResult({ 
+        success: false, 
+        message: 'Error: ' + error.message 
+      });
+      alert('❌ Error: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const Table = ({ title, rows, tone }: { title: string; rows: any[]; tone: "red" | "yellow" }) => (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm overflow-x-auto">
@@ -90,6 +138,20 @@ export default async function Page() {
     </div>
   );
 
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-slate-200 rounded w-64 mb-6"></div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="h-96 bg-slate-200 rounded"></div>
+            <div className="h-96 bg-slate-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -99,30 +161,64 @@ export default async function Page() {
         </div>
         
         <div className="flex items-center gap-3">
-          <Link
+          <a
             href="/api/reminders/csv"
+            download
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             Export CSV
-          </Link>
-          <Link
-            href="/api/reminders/send-email"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          </a>
+          
+          <button
+            onClick={sendReminderEmails}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Kirim Email
-          </Link>
+            {loading ? (
+              <>
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Mengirim...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Kirim Email
+              </>
+            )}
+          </button>
         </div>
       </div>
 
+      {emailResult && (
+        <div className={`rounded-lg p-4 ${emailResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          <div className="flex items-center gap-2">
+            {emailResult.success ? (
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <span className={`text-sm ${emailResult.success ? 'text-green-800' : 'text-red-800'}`}>
+              {emailResult.message}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2">
-        <Table title="Sudah Jatuh Tempo" rows={due} tone="red" />
-        <Table title="Segera Jatuh Tempo" rows={soon} tone="yellow" />
+        <Table title="Sudah Jatuh Tempo" rows={data.due} tone="red" />
+        <Table title="Segera Jatuh Tempo" rows={data.soon} tone="yellow" />
       </div>
       
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">

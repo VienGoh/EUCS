@@ -1,81 +1,165 @@
-// src/app/parts/edit/[id]/page.tsx
-import PartForm, { Part } from "@/components/forms/PartForm";
+// app/services/[id]/edit/page.tsx
 import { prisma } from "@/lib/prisma";
+import ServiceForm from "@/components/forms/ServiceForm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-export default async function EditPartPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  // Await params untuk Next.js 15
-  const { id } = await params;
-  const partId = parseInt(id);
+type Props = { 
+  params: Promise<{ id: string }> 
+};
 
-  // Validasi ID
-  if (isNaN(partId)) {
-    notFound();
-  }
+export default async function EditServicePage({ params }: Props) {
+  try {
+    // Await params
+    const { id } = await params;
+    const serviceId = Number(id);
 
-  // Fetch data dari database
-  const part = await prisma.part.findUnique({
-    where: { id: partId },
-  });
-
-  if (!part) {
-    notFound();
-  }
-
-  // Transform data ke tipe Part
-  const partData: Part = {
-    id: part.id,
-    sku: part.sku,
-    name: part.name,
-    price: part.price,
-    createdAt: part.createdAt,
-  };
-
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header dengan breadcrumb */}
-        <div className="mb-8">
-          <div className="flex items-center text-sm text-gray-500 mb-4">
-            <Link href="/parts" className="hover:text-gray-700">
-              Sparepart
-            </Link>
-            <span className="mx-2">/</span>
-            <span className="text-gray-700 font-medium">Edit #{part.id}</span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Edit Sparepart</h1>
-              <p className="text-gray-600 mt-2">
-                Perbarui informasi untuk <span className="font-medium">{part.name}</span>
-              </p>
+    // Validasi ID
+    if (isNaN(serviceId) || serviceId <= 0) {
+      return (
+        <section className="space-y-4">
+          <h1 className="text-2xl font-semibold">Edit Servis</h1>
+          <div className="rounded-2xl border bg-white p-4">
+            <p className="text-red-600">ID servis tidak valid: {id}</p>
+            <div className="mt-3">
+              <Link href="/services" className="rounded-md border px-3 py-1.5 text-sm hover:bg-blue-50">
+                ← Kembali ke daftar
+              </Link>
             </div>
-            <Link
-              href="/parts"
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
-            >
-              ← Kembali
+          </div>
+        </section>
+      );
+    }
+
+    // Fetch data
+    const [order, vehicles, mechanics, parts] = await Promise.all([
+      prisma.serviceOrder.findUnique({
+        where: { id: serviceId },
+        include: {
+          vehicle: { 
+            include: { customer: true } 
+          },
+          mechanic: true,
+          items: true,
+          parts: { 
+            include: { part: true } 
+          },
+        },
+      }),
+      prisma.vehicle.findMany({ 
+        include: { customer: true }, 
+        orderBy: { id: "desc" } 
+      }),
+      prisma.mechanic.findMany({ 
+        where: { active: true }, 
+        orderBy: { name: "asc" } 
+      }),
+      prisma.part.findMany({ 
+        orderBy: { name: "asc" } 
+      }),
+    ]);
+
+    if (!order) {
+      return (
+        <section className="space-y-4">
+          <h1 className="text-2xl font-semibold">Edit Servis</h1>
+          <div className="rounded-2xl border bg-white p-4">
+            <p>Data servis #{serviceId} tidak ditemukan.</p>
+            <div className="mt-3">
+              <Link href="/services" className="rounded-md border px-3 py-1.5 text-sm hover:bg-blue-50">
+                ← Kembali ke daftar
+              </Link>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    // Format data untuk form
+    const vOpts = vehicles.map(v => ({ 
+      id: v.id, 
+      label: `${v.plate} · ${v.customer.name}` 
+    }));
+    
+    const mOpts = mechanics.map(m => ({ 
+      id: m.id, 
+      label: m.name 
+    }));
+    
+    const pOpts = parts.map(p => ({ 
+      id: p.id, 
+      label: `${p.sku ?? "-"} · ${p.name}`, 
+      price: p.price 
+    }));
+
+    const initial = {
+      vehicleId: order.vehicleId,
+      mechanicId: order.mechanicId ?? undefined,
+      date: order.date ? new Date(order.date).toISOString().slice(0, 10) : "",
+      odometer: order.odometer ?? undefined,
+      notes: order.notes ?? "",
+      items: order.items.map(i => ({ 
+        name: i.name, 
+        price: i.price 
+      })),
+      parts: order.parts.map(p => ({ 
+        partId: p.partId, 
+        qty: p.qty, 
+        unitPrice: p.unitPrice 
+      })),
+    };
+
+    return (
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">
+              Edit Servis #{order.id}
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              {order.vehicle.plate} · {order.vehicle.customer.name}
+            </p>
+          </div>
+          <Link 
+            href="/services" 
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-blue-50"
+          >
+            ← Kembali
+          </Link>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-4 shadow-sm">
+          <ServiceForm
+            mode="edit"
+            serviceId={order.id}
+            vehicles={vOpts}
+            mechanics={mOpts}
+            parts={pOpts}
+            initialValues={initial}
+          />
+        </div>
+      </section>
+    );
+
+  } catch (error) {
+    console.error("Error loading service:", error);
+    
+    return (
+      <section className="space-y-4">
+        <h1 className="text-2xl font-semibold">Edit Servis</h1>
+        <div className="rounded-2xl border bg-white p-4">
+          <p className="text-red-600">
+            Terjadi kesalahan saat memuat data servis.
+          </p>
+          <p className="text-sm text-slate-500 mt-1">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+          <div className="mt-3">
+            <Link href="/services" className="rounded-md border px-3 py-1.5 text-sm hover:bg-blue-50">
+              ← Kembali ke daftar
             </Link>
           </div>
         </div>
-
-        {/* Form Edit */}
-        <PartForm
-          mode="edit"
-          partId={partId}
-          initialData={partData}
-          onSuccess={() => {
-            // Optional: Tambahkan toast notification
-            console.log("Berhasil mengupdate sparepart");
-          }}
-        />
-      </div>
-    </div>
-  );
+      </section>
+    );
+  }
 }
