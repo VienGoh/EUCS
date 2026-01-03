@@ -1,187 +1,76 @@
-// ==============================
-// Datasource & Generator
-// ==============================
-
-datasource db {
-provider = "postgresql"
-url      = env("DATABASE_URL")   // ini nanti "file:./dev.db" di .env
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// ==============================
-// Enums
-// ==============================
-enum Role {
-  ADMIN
-  PENELITI
+datasource db {
+  provider = "sqlite"
+  url      = "file:./database.db"
 }
 
-// ==============================
-// Master
-// ==============================
-model Customer {
+model Admin {
   id        Int      @id @default(autoincrement())
-  name      String
-  phone     String?
-  email     String?
-  createdAt DateTime @default(now())
-
-  vehicles  Vehicle[]
-
-  @@index([name])
-  @@index([email])
-}
-
-model Vehicle {
-  id                  Int       @id @default(autoincrement())
-  customerId          Int
-  plate               String    @unique
-  brand               String
-  model               String?
-  year                Int?
-  createdAt           DateTime  @default(now())
-  serviceIntervalDays Int       @default(180)
-  lastReminderEmailAt DateTime?
-
-  customer Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  services ServiceOrder[]
-  // opsional: relasi balik ke assignment cluster
-  clusterAssignments ClusterAssignment[]  // ← memudahkan include
-
-  // opsional: cache label cluster paling baru, jika mau dipakai di UI / reminder cepat
-  cachedClusterIdx   Int?
-  clusterUpdatedAt   DateTime?
-
-  @@index([customerId])
-  @@index([plate])
-  @@index([cachedClusterIdx])
-}
-
-model Mechanic {
-  id     Int     @id @default(autoincrement())
-  name   String  @unique
-  active Boolean @default(true)
-
-  services ServiceOrder[]
-}
-
-model Part {
-  id        Int      @id @default(autoincrement())
-  sku       String?  @unique
-  name      String
-  price     Float    @default(0)
-  createdAt DateTime @default(now())
-
-  usages ServicePart[]
-
-  @@index([name])
-}
-
-// ==============================
-// Detail
-// ==============================
-model ServiceItem {
-  id             Int    @id @default(autoincrement())
-  serviceOrderId Int
-  name           String
-  price          Float  @default(0)
-
-  order ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-
-  @@index([serviceOrderId])
-}
-
-model ServicePart {
-  id             Int   @id @default(autoincrement())
-  serviceOrderId Int
-  partId         Int
-  qty            Int   @default(1)
-  unitPrice      Float @default(0)
-
-  order ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-  part  Part         @relation(fields: [partId], references: [id])
-
-  @@unique([serviceOrderId, partId])
-  @@index([serviceOrderId])
-  @@index([partId])
-}
-
-// ==============================
-// Header
-// ==============================
-model ServiceOrder {
-  id         Int      @id @default(autoincrement())
-  vehicleId  Int
-  mechanicId Int?
-  date       DateTime @default(now())
-  odometer   Int?
-  notes      String?
-
-  items   ServiceItem[]
-  parts   ServicePart[]
-
-  vehicle  Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  mechanic Mechanic? @relation(fields: [mechanicId], references: [id])
-
-  @@index([vehicleId])
-  @@index([mechanicId])
-  @@index([date])
-}
-
-// ==============================
-// Auth/User
-// ==============================
-model User {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String   @unique
+  username  String   @unique
   password  String
-  role      Role     @default(PENELITI)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
-// ==============================
-// Clustering
-// ==============================
-model ClusterRun {
-  id        Int       @id @default(autoincrement())
-  k         Int
-  sse       Float
-  createdAt DateTime  @default(now())
-
-  centroids ClusterCentroid[]
-  assigns   ClusterAssignment[]
+model Platform {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique // Shopee / TikTok Shop
+  responden  Responden[]
 }
 
-model ClusterCentroid {
-  id     Int   @id @default(autoincrement())
-  runId  Int
-  idx    Int   // index cluster
-  c1     Float
-  c2     Float
-  c3     Float? // tambah kolom sesuai jumlah fitur
+model Responden {
+  id          Int           @id @default(autoincrement())
+  nama        String
+  umur        Int
+  jenisKelamin String
+  platformId  Int
+  platform    Platform     @relation(fields: [platformId], references: [id])
+  createdAt   DateTime      @default(now())
 
-  run    ClusterRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-
-  @@unique([runId, idx])  // ← tiap run, 1 centroid per idx
-  @@index([idx])
+  taskResults TaskResult[]
+  susAnswers  SUSAnswer[]
 }
 
-model ClusterAssignment {
-  id        Int   @id @default(autoincrement())
-  runId     Int
-  vehicleId Int
-  idx       Int
+model Task {
+  id          Int           @id @default(autoincrement())
+  namaTask    String
+  deskripsi   String
+  createdAt   DateTime      @default(now())
 
-  run       ClusterRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  taskResults TaskResult[]
+}
 
-  @@unique([runId, vehicleId]) // ← 1 kendaraan dapat 1 label per run
-  @@index([runId])
-  @@index([vehicleId])
-  @@index([idx])
+model TaskResult {
+  id           Int       @id @default(autoincrement())
+  respondenId  Int
+  taskId       Int
+
+  success      Boolean   // true = berhasil, false = gagal
+  timeOnTask   Float     // dalam detik
+  errorCount   Int       // jumlah error
+
+  responden    Responden @relation(fields: [respondenId], references: [id])
+  task         Task      @relation(fields: [taskId], references: [id])
+
+  createdAt    DateTime  @default(now())
+}
+
+model SUSQuestion {
+  id        Int      @id @default(autoincrement())
+  question  String
+  isPositive Boolean // untuk perhitungan SUS
+}
+
+model SUSAnswer {
+  id           Int      @id @default(autoincrement())
+  respondenId  Int
+  questionId   Int
+  score        Int      // 1–5
+
+  responden    Responden   @relation(fields: [respondenId], references: [id])
+  question     SUSQuestion @relation(fields: [questionId], references: [id])
+}
+ation(fields: [questionId], references: [id])
 }

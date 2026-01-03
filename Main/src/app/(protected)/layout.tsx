@@ -13,7 +13,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     <div className="min-h-screen flex flex-col bg-slate-50">
       <header className="border-b bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between py-3 px-4">
-          <div className="font-semibold tracking-tight">Sistem Bengkel</div>
+          <div className="font-semibold tracking-tight">ecommerce-research-app</div>
           {session?.user && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-600">
