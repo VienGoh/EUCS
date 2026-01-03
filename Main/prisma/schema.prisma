@@ -31,6 +31,8 @@ model Responden {
 
   taskResults TaskResult[]
   susAnswers  SUSAnswer[]
+  
+  @@unique([platformId, id])
 }
 
 model Task {
@@ -42,35 +44,38 @@ model Task {
   taskResults TaskResult[]
 }
 
+// schema.prisma - ubah field success menjadi nullable
 model TaskResult {
   id           Int       @id @default(autoincrement())
   respondenId  Int
   taskId       Int
-
-  success      Boolean   // true = berhasil, false = gagal
+  success      Boolean?  // TAMBAHKAN ? untuk nullable
   timeOnTask   Float     // dalam detik
   errorCount   Int       // jumlah error
+  createdAt    DateTime  @default(now())
 
   responden    Responden @relation(fields: [respondenId], references: [id])
   task         Task      @relation(fields: [taskId], references: [id])
-
-  createdAt    DateTime  @default(now())
+  
+  @@unique([respondenId, taskId])
 }
 
 model SUSQuestion {
-  id        Int      @id @default(autoincrement())
-  question  String
-  isPositive Boolean // untuk perhitungan SUS
+  id         Int      @id @default(autoincrement())
+  question   String
+  isPositive Boolean  // untuk perhitungan SUS
+  
+  answers    SUSAnswer[]
 }
 
 model SUSAnswer {
-  id           Int      @id @default(autoincrement())
-  respondenId  Int
-  questionId   Int
-  score        Int      // 1–5
+  id          Int      @id @default(autoincrement())
+  respondenId Int
+  questionId  Int
+  score       Int      // 1–5
 
-  responden    Responden   @relation(fields: [respondenId], references: [id])
-  question     SUSQuestion @relation(fields: [questionId], references: [id])
-}
-ation(fields: [questionId], references: [id])
+  responden   Responden   @relation(fields: [respondenId], references: [id])
+  question    SUSQuestion @relation(fields: [questionId], references: [id])
+  
+  @@unique([respondenId, questionId]) // Mencegah duplikat jawaban untuk pertanyaan yang sama
 }

@@ -1,37 +1,29 @@
-// components/charts/platform-chart.tsx
-"use client";
+'use client';
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-} from "recharts";
-
-interface PlatformData {
-  name: string;
-  jumlah: number;
-  fill: string;
-}
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface PlatformChartProps {
-  data: PlatformData[];
+  data: Array<{
+    name: string;
+    jumlah: number;
+    fill: string;
+  }>;
 }
 
 export default function PlatformChart({ data }: PlatformChartProps) {
+  const total = data.reduce((sum, item) => sum + item.jumlah, 0);
+
   return (
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
+    <div>
+      <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
             labelLine={false}
-            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-            outerRadius={80}
+            label={({ name, jumlah }) => `${name}: ${jumlah}`}
+            outerRadius={100}
             fill="#8884d8"
             dataKey="jumlah"
           >
@@ -43,6 +35,20 @@ export default function PlatformChart({ data }: PlatformChartProps) {
           <Legend />
         </PieChart>
       </ResponsiveContainer>
+      
+      {/* Additional info */}
+      <div className="mt-4 text-center text-sm text-gray-600">
+        <p>Total Responden: {total}</p>
+        {data.map((platform) => (
+          <div key={platform.name} className="inline-flex items-center mx-2">
+            <div 
+              className="w-3 h-3 rounded-full mr-1" 
+              style={{ backgroundColor: platform.fill }}
+            />
+            <span>{platform.name}: {platform.jumlah} ({Math.round((platform.jumlah / total) * 100)}%)</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
