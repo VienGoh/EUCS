@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     // Ambil semua jawaban SUS
-    const susAnswers = await prisma.susAnswer.findMany({
+    const susAnswers = await prisma.sUSAnswer.findMany({
       include: { question: true },
     });
 
