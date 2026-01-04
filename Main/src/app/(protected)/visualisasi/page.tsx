@@ -1,21 +1,21 @@
+// app/(protected)/visualisasi/page.tsx
 import DashboardHeader from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Download, Filter, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
 import { prisma } from '@/lib/prisma';
 import PlatformChart from '@/components/charts/platform-chart';
 import GenderChart from '@/components/charts/gender-chart';
 import SUSScoreDistribution from '@/components/SUSScoreDistribution';
 import PlatformComparisonChart from '@/components/PlatformComparisonChart';
+import ClientActions from './ClientActions';
 
 async function getVisualizationData() {
-  // Data platform - PERBAIKAN: gunakan field yang benar
+  // Data platform
   const platforms = await prisma.platform.findMany({
     include: { 
       responden: {
         include: {
           taskResults: true,
-          susAnswers: {  // PERBAIKAN: huruf kecil
+          susAnswers: {
             include: { question: true }
           }
         }
@@ -74,15 +74,24 @@ async function getVisualizationData() {
     };
   });
 
+  // Get platforms for filter
+  const platformsFilter = await prisma.platform.findMany({
+    select: {
+      id: true,
+      name: true
+    }
+  });
+
   return {
     platformData,
     genderData,
-    taskPerformance
+    taskPerformance,
+    platformsFilter
   };
 }
 
 export default async function VisualisasiPage() {
-  const { platformData, genderData, taskPerformance } = await getVisualizationData();
+  const { platformData, genderData, taskPerformance, platformsFilter } = await getVisualizationData();
 
   // Hitung statistik ringkasan
   const totalResponden = platformData.reduce((sum, p) => sum + p.jumlah, 0);
@@ -99,20 +108,15 @@ export default async function VisualisasiPage() {
         title="Visualisasi Hasil Evaluasi UX"
         subtitle="Analisis mendalam data usability testing dari Shopee dan TikTok Shop"
       >
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-          </Button>
-          <Button variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-          <Button size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export Laporan
-          </Button>
-        </div>
+        <ClientActions 
+          platformData={platformData}
+          genderData={genderData}
+          taskPerformance={taskPerformance}
+          totalResponden={totalResponden}
+          avgSuccessRate={avgSuccessRate}
+          avgCompletionTime={avgCompletionTime}
+          platformsFilter={platformsFilter}
+        />
       </DashboardHeader>
 
       <div className="p-6">
