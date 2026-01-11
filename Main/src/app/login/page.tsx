@@ -1,93 +1,89 @@
-"use client";
+"use client"
 
-import { useState, FormEvent, Suspense } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from 'react'
+import { signIn } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-function LoginForm() {
-  const router = useRouter();
-  const qp = useSearchParams();
-  const callbackUrl = qp.get("callbackUrl") ?? "/dashboard";
+export default function LoginPage() {
+  const [email, setEmail] = useState('admin@eucs.com')
+  const [password, setPassword] = useState('password123')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setLoading(true);
-
-    const res = await signIn("credentials", {
-      redirect: false,
+    const result = await signIn('credentials', {
       email,
       password,
-      callbackUrl,
-    });
+      redirect: false,
+    })
 
-    setLoading(false);
+    console.log('Login result:', result)
 
-    if (res?.error) {
-      setErr("Email atau password salah.");
-    } else {
-      router.push(callbackUrl);
+    if (result?.error) {
+      setError('Login gagal. Periksa email dan password.')
+      setLoading(false)
+    } else if (result?.ok) {
+      // Redirect manual setelah login sukses
+      window.location.href = callbackUrl
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm bg-white rounded-2xl shadow p-6 space-y-4"
-      >
-        <h1 className="text-xl font-semibold">Masuk</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="w-full max-w-sm p-8 bg-white rounded-lg shadow">
+        <h1 className="text-2xl font-bold mb-6 text-center">Login EUCS</h1>
+        
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded border border-red-200">
+            {error}
+          </div>
+        )}
 
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          
+          <div className="mb-6">
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
 
-        <label className="block">
-          <span className="text-sm">Email</span>
-          <input
-            className="mt-1 w-full rounded-xl border p-2"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white p-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Memproses...' : 'Masuk'}
+          </button>
+        </form>
 
-        <label className="block">
-          <span className="text-sm">Password</span>
-          <input
-            className="mt-1 w-full rounded-xl border p-2"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-
-        <button
-          className="w-full rounded-xl bg-slate-900 text-white py-2 disabled:opacity-60"
-          disabled={loading}
-        >
-          {loading ? "Masuk..." : "Masuk"}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <span>Memuat...</span>
+        <div className="mt-6 text-center text-sm text-gray-500">
+          <p>Email: admin@eucs.com</p>
+          <p>Password: password123</p>
         </div>
-      }
-    >
-      <LoginForm />
-    </Suspense>
-  );
+      </div>
+    </div>
+  )
 }

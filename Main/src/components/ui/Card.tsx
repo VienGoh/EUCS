@@ -1,37 +1,67 @@
-import * as React from "react"
+// src/components/ui/Card.tsx
+import { ReactNode } from 'react';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+interface CardProps {
+  children: ReactNode;
+  className?: string;
 }
 
-export function Card({ children, className, ...props }: CardProps) {
+interface CardHeaderProps {
+  children: ReactNode;
+  className?: string;
+}
+
+interface CardTitleProps {
+  children: ReactNode;
+  className?: string;
+}
+
+interface CardDescriptionProps {
+  children: ReactNode;
+  className?: string;
+}
+
+interface CardContentProps {
+  children: ReactNode;
+  className?: string;
+}
+
+export function Card({ children, className = '' }: CardProps) {
   return (
-    <div className={`rounded-lg border bg-white shadow-sm ${className}`} {...props}>
+    <div className={`bg-white rounded-lg border border-gray-200 shadow-sm ${className}`}>
       {children}
     </div>
-  )
+  );
 }
 
-export function CardHeader({ children, className, ...props }: CardProps) {
+export function CardHeader({ children, className = '' }: CardHeaderProps) {
   return (
-    <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props}>
+    <div className={`px-6 py-4 border-b border-gray-200 ${className}`}>
       {children}
     </div>
-  )
+  );
 }
 
-export function CardTitle({ children, className, ...props }: CardProps) {
+export function CardTitle({ children, className = '' }: CardTitleProps) {
   return (
-    <h3 className={`text-lg font-semibold leading-none tracking-tight ${className}`} {...props}>
+    <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>
       {children}
     </h3>
-  )
+  );
 }
 
-export function CardContent({ children, className, ...props }: CardProps) {
+export function CardDescription({ children, className = '' }: CardDescriptionProps) {
   return (
-    <div className={`p-6 pt-0 ${className}`} {...props}>
+    <p className={`text-sm text-gray-500 mt-1 ${className}`}>
+      {children}
+    </p>
+  );
+}
+
+export function CardContent({ children, className = '' }: CardContentProps) {
+  return (
+    <div className={`p-6 ${className}`}>
       {children}
     </div>
-  )
+  );
 }

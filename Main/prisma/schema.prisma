@@ -4,78 +4,216 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./database.db"
+  url      = env("DATABASE_URL")
 }
 
-model Admin {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
+// ====================
+// TABEL UTAMA
+// ====================
+
+// Admin/Peneliti
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
   password  String
+  name      String
+  role      UserRole @default(RESEARCHER)
   createdAt DateTime @default(now())
-}
-
-model Platform {
-  id         Int         @id @default(autoincrement())
-  name       String      @unique // Shopee / TikTok Shop
-  responden  Responden[]
-}
-
-model Responden {
-  id          Int           @id @default(autoincrement())
-  nama        String
-  umur        Int
-  jenisKelamin String
-  platformId  Int
-  platform    Platform     @relation(fields: [platformId], references: [id])
-  createdAt   DateTime      @default(now())
-
-  taskResults TaskResult[]
-  susAnswers  SUSAnswer[]
+  updatedAt DateTime @updatedAt
   
-  @@unique([platformId, id])
-}
-
-model Task {
-  id          Int           @id @default(autoincrement())
-  namaTask    String
-  deskripsi   String
-  createdAt   DateTime      @default(now())
-
-  taskResults TaskResult[]
-}
-
-// schema.prisma - ubah field success menjadi nullable
-model TaskResult {
-  id           Int       @id @default(autoincrement())
-  respondenId  Int
-  taskId       Int
-  success      Boolean?  // TAMBAHKAN ? untuk nullable
-  timeOnTask   Float     // dalam detik
-  errorCount   Int       // jumlah error
-  createdAt    DateTime  @default(now())
-
-  responden    Responden @relation(fields: [respondenId], references: [id])
-  task         Task      @relation(fields: [taskId], references: [id])
+  // Relasi
+  surveys Survey[]
+  exports Export[]
   
-  @@unique([respondenId, taskId])
+  @@map("users")
 }
 
-model SUSQuestion {
-  id         Int      @id @default(autoincrement())
-  question   String
-  isPositive Boolean  // untuk perhitungan SUS
-  
-  answers    SUSAnswer[]
+enum UserRole {
+  RESEARCHER
+  ADMIN
 }
 
-model SUSAnswer {
-  id          Int      @id @default(autoincrement())
-  respondenId Int
-  questionId  Int
-  score       Int      // 1–5
-
-  responden   Responden   @relation(fields: [respondenId], references: [id])
-  question    SUSQuestion @relation(fields: [questionId], references: [id])
+// Responden Penelitian
+model Respondent {
+  id              String   @id @default(cuid())
+  name            String
+  age             Int
+  gender          String   // "Laki-laki" | "Perempuan"
+  email           String?  @unique
+  phone           String?
+  occupation      String
+  education       String?
+  incomeRange     String?  // "< 3jt", "3-5jt", "5-10jt", "> 10jt"
+  tiktokUsage     Int      // 1-5 (Likert Scale)
+  tiktokShopUsage Int      // 1-5 (Likert Scale)
+  lastPurchase    DateTime
+  createdAt       DateTime @default(now())
   
-  @@unique([respondenId, questionId]) // Mencegah duplikat jawaban untuk pertanyaan yang sama
+  // Relasi
+  surveys Survey[]
+  
+  @@map("respondents")
+}
+
+// Kuesioner/Survei
+model Survey {
+  id           String   @id @default(cuid())
+  respondentId String
+  researcherId String
+  completed    Boolean  @default(false)
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  
+  // Relasi
+  respondent Respondent @relation(fields: [respondentId], references: [id], onDelete: Cascade)
+  researcher User       @relation(fields: [researcherId], references: [id], onDelete: Cascade)
+  answers    Answer[]
+  analysis   Analysis?
+  
+  @@map("surveys")
+}
+
+// ====================
+// DIMENSI EUCS
+// ====================
+
+// Dimensi EUCS dan Loyalty
+model Dimension {
+  id          String   @id @default(cuid())
+  name        String   @unique  // Content, Accuracy, Format, EaseOfUse, Timeliness, Loyalty
+  description String
+  indicators  String   // JSON string array
+  
+  // Relasi
+  questions Question[]
+  
+  @@map("dimensions")
+}
+
+// Pertanyaan Kuesioner
+model Question {
+  id          String   @id @default(cuid())
+  dimensionId String
+  code        String   @unique  // Q1, Q2, ..., L1, L2
+  text        String
+  indicator   String   // Nama indikator
+  order       Int
+  
+  // Relasi
+  dimension Dimension @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
+  answers   Answer[]
+  validityReliabilities ValidityReliability[] // TAMBAHKAN INI
+  
+  @@map("questions")
+}
+
+// Jawaban Responden
+model Answer {
+  id         String   @id @default(cuid())
+  surveyId   String
+  questionId String
+  value      Int      // 1-5 (Likert Scale)
+  createdAt  DateTime @default(now())
+  
+  // Relasi
+  survey   Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@unique([surveyId, questionId])
+  
+  @@map("answers")
+}
+
+// Hasil Analisis
+model Analysis {
+  id         String   @id @default(cuid())
+  surveyId   String   @unique
+  content    Float
+  accuracy   Float
+  format     Float
+  easeOfUse  Float
+  timeliness Float
+  loyalty    Float
+  totalScore Float
+  createdAt  DateTime @default(now())
+  
+  // Relasi
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  
+  @@map("analyses")
+}
+
+// ====================
+// FITUR TAMBAHAN
+// ====================
+
+// Visualisasi Chart
+model Visualization {
+  id        String   @id @default(cuid())
+  type      ChartType
+  data      Json
+  title     String
+  createdAt DateTime @default(now())
+  
+  @@map("visualizations")
+}
+
+enum ChartType {
+  BAR
+  PIE
+  HEATMAP
+  LINE
+}
+
+// Export History
+model Export {
+  id        String   @id @default(cuid())
+  userId    String
+  type      ExportType
+  data      Json?
+  fileUrl   String?
+  createdAt DateTime @default(now())
+  
+  // Relasi
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("exports")
+}
+
+enum ExportType {
+  PDF
+  CSV
+  EXCEL
+}
+
+// Validitas & Reliabilitas
+model ValidityReliability {
+  id                String   @id @default(cuid())
+  questionId        String
+  rHitung           Float
+  rTabel            Float
+  status            String   // "Valid" | "Tidak Valid"
+  cronbachAlpha     Float?
+  cronbachStatus    String?  // "Reliabel" | "Cukup" | "Tidak Reliabel"
+  createdAt         DateTime @default(now())
+  
+  // Relasi
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@map("validity_reliability")
+}
+
+// Regresi Analysis
+model Regression {
+  id              String   @id @default(cuid())
+  dimension       String
+  coefficient     Float
+  tValue          Float
+  pValue          Float
+  significance    String   // "Signifikan" | "Tidak Signifikan"
+  rSquared        Float
+  adjustedRSquared Float
+  createdAt       DateTime @default(now())
+  
+  @@map("regressions")
 }

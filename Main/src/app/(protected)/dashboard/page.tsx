@@ -1,385 +1,201 @@
-// app/dashboard/page.tsx
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import PlatformChart from "@/components/charts/platform-chart";
-import GenderChart from "@/components/charts/gender-chart";
+import { prisma } from '@/lib/prisma'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Users, FileText, CheckCircle, TrendingUp, Target, Shield, Layout, Clock, ThumbsUp } from 'lucide-react'
 
 export default async function DashboardPage() {
-  try {
-    // ======================
-    // DATA UTAMA
-    // ======================
-    const totalResponden = await prisma.responden.count();
-    const totalTask = await prisma.taskResult.count();
-    
-    // PERBAIKAN: Gunakan where: { success: true } dengan nullable field
-    const successTask = await prisma.taskResult.count({
-      where: { 
-        success: true  // Field success sekarang nullable
-      },
-    });
-    
-    const successRate = totalTask === 0 ? 0 : Math.round((successTask / totalTask) * 100);
-
-    // Data platform
-    const platforms = await prisma.platform.findMany({
+  // Fetch data for dashboard
+  const [
+    totalRespondents,
+    totalSurveys,
+    completedSurveys,
+    respondentsByGender,
+    recentSurveys
+  ] = await Promise.all([
+    prisma.respondent.count(),
+    prisma.survey.count(),
+    prisma.survey.count({ where: { completed: true } }),
+    prisma.respondent.groupBy({
+      by: ['gender'],
+      _count: true
+    }),
+    prisma.survey.findMany({
+      take: 5,
+      where: { completed: true },
+      orderBy: { completedAt: 'desc' },
       include: {
-        responden: true
+        respondent: true,
+        analysis: true
       }
-    });
+    })
+  ])
 
-    const platformData = platforms.map(p => ({
-      name: p.name,
-      jumlah: p.responden.length,
-      fill: p.name === "Shopee" ? "#FF6B35" : "#00A8E8"
-    }));
+  // Calculate average scores
+  const allAnalyses = await prisma.analysis.findMany()
+  const avgScores = {
+    content: 0,
+    accuracy: 0,
+    format: 0,
+    easeOfUse: 0,
+    timeliness: 0,
+    loyalty: 0
+  }
 
-    // Data jenis kelamin
-    const respondenGender = await prisma.responden.groupBy({
-      by: ['jenisKelamin'],
-      _count: {
-        id: true
-      }
-    });
+  if (allAnalyses.length > 0) {
+    avgScores.content = allAnalyses.reduce((sum, a) => sum + a.content, 0) / allAnalyses.length
+    avgScores.accuracy = allAnalyses.reduce((sum, a) => sum + a.accuracy, 0) / allAnalyses.length
+    avgScores.format = allAnalyses.reduce((sum, a) => sum + a.format, 0) / allAnalyses.length
+    avgScores.easeOfUse = allAnalyses.reduce((sum, a) => sum + a.easeOfUse, 0) / allAnalyses.length
+    avgScores.timeliness = allAnalyses.reduce((sum, a) => sum + a.timeliness, 0) / allAnalyses.length
+    avgScores.loyalty = allAnalyses.reduce((sum, a) => sum + a.loyalty, 0) / allAnalyses.length
+  }
 
-    const genderData = respondenGender.map(g => ({
-      name: g.jenisKelamin,
-      value: g._count.id,
-      fill: g.jenisKelamin === "Laki-laki" ? "#3B82F6" : "#EC4899"
-    }));
+  const completionRate = totalSurveys > 0 ? (completedSurveys / totalSurveys) * 100 : 0
+  const maleCount = respondentsByGender.find(g => g.gender === 'Laki-laki')?._count || 0
+  const femaleCount = respondentsByGender.find(g => g.gender === 'Perempuan')?._count || 0
 
-    // ======================
-    // SUS SCORE CALCULATION - PERBAIKAN: Gunakan SUSAnswer (huruf besar)
-    // ======================
-    const answers = await prisma.sUSAnswer.findMany({
-      include: { question: true },
-    });
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard Analisis EUCS</h1>
+        <p className="text-gray-600 mt-2">Ringkasan hasil penelitian TikTok Shop</p>
+      </div>
 
-    const susPerResponden: Record<number, number> = {};
-
-    for (const ans of answers) {
-      const base = ans.question.isPositive ? ans.score - 1 : 5 - ans.score;
-      susPerResponden[ans.respondenId] = (susPerResponden[ans.respondenId] || 0) + base;
-    }
-
-    const susValues = Object.values(susPerResponden).map((total) => total * 2.5);
-    const avgSUS = susValues.length === 0 ? 0 : Math.round(susValues.reduce((a, b) => a + b, 0) / susValues.length);
-
-    // Kategori SUS
-    let susCategory = "";
-    let susColor = "";
-    if (avgSUS >= 85) {
-      susCategory = "Excellent";
-      susColor = "text-green-600";
-    } else if (avgSUS >= 70) {
-      susCategory = "Good";
-      susColor = "text-blue-600";
-    } else if (avgSUS >= 50) {
-      susCategory = "OK";
-      susColor = "text-yellow-600";
-    } else {
-      susCategory = "Poor";
-      susColor = "text-red-600";
-    }
-
-    // ======================
-    // PERFORMANCE TASK - PERBAIKAN: Handle nullable success field
-    // ======================
-    const tasks = await prisma.task.findMany({
-      include: {
-        taskResults: {
-          select: {
-            success: true,
-            timeOnTask: true,
-            errorCount: true
-          }
-        }
-      }
-    });
-
-    const taskPerformance = tasks.map(task => {
-      const results = task.taskResults;
-      const total = results.length;
-      
-      // PERBAIKAN: Filter success yang tidak null dan true
-      const successResults = results.filter(r => r.success === true);
-      const success = successResults.length;
-      
-      const avgTime = total === 0 ? 0 : results.reduce((sum, r) => sum + r.timeOnTask, 0) / total;
-      const avgError = total === 0 ? 0 : results.reduce((sum, r) => sum + r.errorCount, 0) / total;
-
-      return {
-        task: task.namaTask,
-        successRate: total === 0 ? 0 : Math.round((success / total) * 100),
-        avgTime: Math.round(avgTime),
-        avgError: avgError.toFixed(1)
-      };
-    });
-
-    // ======================
-    // PERHITUNGAN TAMBAHAN UNTUK VALIDASI
-    // ======================
-    // Hitung success rate dari task performance (untuk konfirmasi)
-    const avgTaskSuccessRate = taskPerformance.length > 0 
-      ? Math.round(taskPerformance.reduce((sum, t) => sum + t.successRate, 0) / taskPerformance.length)
-      : 0;
-
-    // Hitung rata-rata completion time
-    const avgCompletionTime = taskPerformance.length > 0
-      ? Math.round(taskPerformance.reduce((sum, t) => sum + t.avgTime, 0) / taskPerformance.length)
-      : 0;
-
-    // Debug log ke console server
-    console.log("=== DASHBOARD METRICS ===");
-    console.log("Total Responden:", totalResponden);
-    console.log("Total Tasks:", totalTask);
-    console.log("Success Tasks:", successTask);
-    console.log("Success Rate Global:", successRate, "%");
-    console.log("Average Task Success Rate:", avgTaskSuccessRate, "%");
-    console.log("Avg Completion Time:", avgCompletionTime, "s");
-    console.log("Avg SUS:", avgSUS);
-    console.log("Task Count:", taskPerformance.length);
-    console.log("========================");
-
-    return (
-      <div className="p-6 bg-gray-50 min-h-screen">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">
-            Dashboard Evaluasi User Experience
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Analisis Usability Testing untuk Shopee dan TikTok Shop
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-lg bg-blue-100">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.67 3.137a10.05 10.05 0 01-.67 3.137v0" />
-                </svg>
+                <Users className="w-6 h-6 text-blue-600" />
               </div>
               <div className="ml-4">
                 <p className="text-sm text-gray-500">Total Responden</p>
-                <p className="text-2xl font-bold text-gray-800">{totalResponden}</p>
+                <p className="text-2xl font-bold text-gray-900">{totalRespondents}</p>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+        <Card>
+          <CardContent className="p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-lg bg-green-100">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm text-gray-500">Success Rate</p>
-                <p className="text-2xl font-bold text-gray-800">{successRate}%</p>
-                <p className="text-xs text-gray-500">
-                  {successTask} dari {totalTask} tasks
-                </p>
+                <p className="text-sm text-gray-500">Completion Rate</p>
+                <p className="text-2xl font-bold text-gray-900">{completionRate.toFixed(1)}%</p>
+                <p className="text-xs text-gray-500">{completedSurveys} dari {totalSurveys}</p>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+        <Card>
+          <CardContent className="p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-lg bg-purple-100">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-                </svg>
+                <Users className="w-6 h-6 text-purple-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm text-gray-500">Average SUS Score</p>
-                <p className="text-2xl font-bold text-gray-800">{avgSUS}</p>
-                <p className={`text-sm font-medium ${susColor}`}>{susCategory}</p>
+                <p className="text-sm text-gray-500">Gender Ratio</p>
+                <p className="text-2xl font-bold text-gray-900">{maleCount}:{femaleCount}</p>
+                <p className="text-xs text-gray-500">Laki : Perempuan</p>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+        <Card>
+          <CardContent className="p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-lg bg-orange-100">
-                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
+                <TrendingUp className="w-6 h-6 text-orange-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm text-gray-500">Avg Completion Time</p>
-                <p className="text-2xl font-bold text-gray-800">{avgCompletionTime}s</p>
-                <p className="text-xs text-gray-500">
-                  dari {totalTask} tasks
-                </p>
+                <p className="text-sm text-gray-500">Avg Loyalty Score</p>
+                <p className="text-2xl font-bold text-gray-900">{avgScores.loyalty.toFixed(1)}/5</p>
+                <p className="text-xs text-gray-500">Skor Loyalitas</p>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Platform Distribution */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Distribusi Platform</h2>
-            <PlatformChart data={platformData} />
-            <div className="mt-4 text-sm text-gray-600">
-              <p>• Shopee: {platformData.find(p => p.name === "Shopee")?.jumlah || 0} responden</p>
-              <p>• TikTok Shop: {platformData.find(p => p.name === "TikTok Shop")?.jumlah || 0} responden</p>
-            </div>
+      {/* EUCS Scores */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Skor Rata-rata Dimensi EUCS</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { name: 'Content', score: avgScores.content, icon: Target, color: 'bg-blue-100 text-blue-600' },
+              { name: 'Accuracy', score: avgScores.accuracy, icon: Shield, color: 'bg-green-100 text-green-600' },
+              { name: 'Format', score: avgScores.format, icon: Layout, color: 'bg-purple-100 text-purple-600' },
+              { name: 'EaseOfUse', score: avgScores.easeOfUse, icon: TrendingUp, color: 'bg-yellow-100 text-yellow-600' },
+              { name: 'Timeliness', score: avgScores.timeliness, icon: Clock, color: 'bg-red-100 text-red-600' },
+              { name: 'Loyalty', score: avgScores.loyalty, icon: ThumbsUp, color: 'bg-pink-100 text-pink-600' }
+            ].map((dimension) => (
+              <div key={dimension.name} className="text-center">
+                <div className={`inline-flex p-3 rounded-lg ${dimension.color} mb-2`}>
+                  <dimension.icon className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-medium text-gray-900">{dimension.name}</p>
+                <p className="text-xl font-bold text-gray-900">{dimension.score.toFixed(1)}</p>
+                <p className="text-xs text-gray-500">/5</p>
+              </div>
+            ))}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Gender Distribution */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Distribusi Jenis Kelamin</h2>
-            <GenderChart data={genderData} />
-            <div className="mt-4 text-sm text-gray-600">
-              {genderData.map(g => (
-                <p key={g.name}>• {g.name}: {g.value} responden</p>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Task Performance Table */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">Performance per Task</h2>
-            <div className="text-sm text-gray-500">
-              Rata-rata: {avgTaskSuccessRate}% success, {avgCompletionTime}s
-            </div>
-          </div>
+      {/* Recent Surveys */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Survey Terbaru</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-full">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Success Rate</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Time (s)</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Errors</th>
+                <tr className="border-b">
+                  <th className="text-left py-3 text-sm font-medium text-gray-500">Responden</th>
+                  <th className="text-left py-3 text-sm font-medium text-gray-500">Tanggal</th>
+                  <th className="text-left py-3 text-sm font-medium text-gray-500">Skor Total</th>
+                  <th className="text-left py-3 text-sm font-medium text-gray-500">Status</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {taskPerformance.map((task, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {task.task}
+              <tbody>
+                {recentSurveys.map((survey) => (
+                  <tr key={survey.id} className="border-b hover:bg-gray-50">
+                    <td className="py-3">
+                      <p className="font-medium text-gray-900">{survey.respondent.name}</p>
+                      <p className="text-sm text-gray-500">{survey.respondent.email}</p>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              task.successRate >= 80 ? 'bg-green-500' : 
-                              task.successRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${task.successRate}%` }}
-                          ></div>
-                        </div>
-                        <span className="ml-2 text-sm text-gray-700">{task.successRate}%</span>
-                      </div>
+                    <td className="py-3">
+                      <p className="text-gray-900">
+                        {survey.completedAt?.toLocaleDateString('id-ID')}
+                      </p>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {task.avgTime} detik
+                    <td className="py-3">
+                      <p className="font-bold text-gray-900">
+                        {survey.analysis?.totalScore.toFixed(1) || 'N/A'}
+                      </p>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {task.avgError}
+                    <td className="py-3">
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                        Selesai
+                      </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Link
-            href="/responden"
-            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 transform hover:-translate-y-1"
-          >
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-white/20">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.67 3.137a10.05 10.05 0 01-.67 3.137v0" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-xl font-bold">Data Responden</h3>
-                <p className="opacity-90 mt-1">Kelola dan lihat data responden penelitian</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/usability-testing"
-            className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 transform hover:-translate-y-1"
-          >
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-white/20">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-xl font-bold">Usability Testing</h3>
-                <p className="opacity-90 mt-1">Hasil pengujian dan task performance</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/visualisasi"
-            className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 transform hover:-translate-y-1"
-          >
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-white/20">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-xl font-bold">Visualisasi Hasil</h3>
-                <p className="opacity-90 mt-1">Chart dan grafik analisis mendalam</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        {/* Info Konsistensi */}
-        <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="font-semibold text-blue-800 mb-2">📊 Info Konsistensi Data</h3>
-          <div className="text-sm text-blue-700 space-y-1">
-            <p>• Success Rate Global: <strong>{successRate}%</strong> (dari semua task)</p>
-            <p>• Rata-rata Success per Task: <strong>{avgTaskSuccessRate}%</strong></p>
-            <p>• Perbedaan: <strong>{Math.abs(successRate - avgTaskSuccessRate)}%</strong></p>
-            <p>• Avg SUS Score: <strong>{avgSUS}</strong> ({susCategory})</p>
-            <p className="text-xs">Catatan: Perbedaan kecil wajar karena pembulatan</p>
-          </div>
-        </div>
-      </div>
-    );
-  } catch (error) {
-    console.error("Error loading dashboard:", error);
-    return (
-      <div className="p-6 bg-gray-50 min-h-screen">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">
-            Dashboard Evaluasi User Experience
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Analisis Usability Testing untuk Shopee dan TikTok Shop
-          </p>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-red-800 mb-2">Error Loading Dashboard</h2>
-          <p className="text-red-700">{error.message}</p>
-          <p className="text-red-600 mt-2">Silakan refresh halaman atau hubungi administrator.</p>
-        </div>
-      </div>
-    );
-  }
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
