@@ -3,8 +3,82 @@ const bcrypt = require('bcryptjs')
 
 const prisma = new PrismaClient()
 
+// Fungsi untuk generate data tanpa faker.js
+function generateIndonesianName(gender) {
+  const maleNames = [
+    'Ahmad', 'Budi', 'Joko', 'Agus', 'Dwi', 'Hadi', 'Rudi', 'Eko', 'Feri', 'Gunawan',
+    'Hendra', 'Iwan', 'Joni', 'Kurniawan', 'Lukman', 'Mulyadi', 'Nugroho', 'Oki', 'Prasetyo', 'Rahmat',
+    'Surya', 'Tri', 'Umar', 'Wahyudi', 'Yanto', 'Zainal', 'Arief', 'Bayu', 'Cahyo', 'Dedi',
+    'Eri', 'Fajar', 'Galih', 'Haris', 'Indra', 'Jaya', 'Kusuma', 'Lestari', 'Maulana', 'Nanda'
+  ]
+  
+  const femaleNames = [
+    'Siti', 'Desi', 'Rini', 'Dewi', 'Ani', 'Sri', 'Yuni', 'Maya', 'Nur', 'Lina',
+    'Rina', 'Sari', 'Diana', 'Eka', 'Fitri', 'Gita', 'Hani', 'Intan', 'Juli', 'Kartika',
+    'Linda', 'Mira', 'Nina', 'Oki', 'Putri', 'Rahma', 'Siska', 'Tika', 'Utami', 'Vina',
+    'Wati', 'Yulia', 'Zahra', 'Ayu', 'Bunga', 'Cici', 'Dinda', 'Elsa', 'Fani', 'Gina'
+  ]
+  
+  const surnames = [
+    'Santoso', 'Wijaya', 'Pratama', 'Setiawan', 'Kusuma', 'Haryanto', 'Saputra', 'Purnama', 'Nugroho', 'Halim',
+    'Susanto', 'Wibowo', 'Hakim', 'Siregar', 'Nasution', 'Simanjuntak', 'Hutagalung', 'Sihombing', 'Situmorang', 'Lubis',
+    'Harahap', 'Rambe', 'Ginting', 'Sembiring', 'Peranginangin', 'Tarigan', 'Kaban', 'Manalu', 'Nababan', 'Siahaan',
+    'Pardede', 'Silalahi', 'Sinaga', 'Sirait', 'Hutapea', 'Pangaribuan', 'Marpaung', 'Pakpahan', 'Sitorus', 'Purba'
+  ]
+  
+  const firstName = gender === 'Laki-laki' 
+    ? maleNames[Math.floor(Math.random() * maleNames.length)]
+    : femaleNames[Math.floor(Math.random() * femaleNames.length)]
+  
+  const lastName = surnames[Math.floor(Math.random() * surnames.length)]
+  
+  return `${firstName} ${lastName}`
+}
+
+function generateEmail(name) {
+  const cleanName = name.toLowerCase().replace(/\s+/g, '.')
+  const domains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'ymail.com']
+  const domain = domains[Math.floor(Math.random() * domains.length)]
+  return `${cleanName}${Math.floor(Math.random() * 99) + 1}@${domain}`
+}
+
+function generateIndonesianPhone() {
+  const prefixes = ['0812', '0813', '0814', '0815', '0816', '0817', '0818', '0819', '0852', '0853', '0855', '0856', '0857', '0858', '0877', '0878', '0881', '0882', '0883', '0884', '0885', '0886', '0887', '0888', '0889']
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)]
+  let suffix = ''
+  for (let i = 0; i < 8; i++) {
+    suffix += Math.floor(Math.random() * 10)
+  }
+  return `${prefix}${suffix}`
+}
+
+function generateOccupation() {
+  const occupations = [
+    'Mahasiswa', 'Pegawai Swasta', 'Wiraswasta', 'PNS', 'Guru', 'Dosen', 'Dokter', 'Perawat',
+    'Pengusaha', 'Freelancer', 'Karyawan BUMN', 'Buruh', 'Petani', 'Nelayan', 'Pedagang',
+    'Konsultan', 'Programmer', 'Desainer', 'Marketing', 'Akuntan', 'Pengacara', 'Arsitek',
+    'Peneliti', 'Jurnalis', 'Artis', 'Musisi', 'Atlet', 'Pilot', 'Pramugari', 'Polisi',
+    'Tentara', 'Sopir', 'Koki', 'Bartender', 'Penata Rambut', 'Makeup Artist'
+  ]
+  return occupations[Math.floor(Math.random() * occupations.length)]
+}
+
+function generateEducation() {
+  const educations = ['SMP', 'SMA', 'D1', 'D2', 'D3', 'S1', 'S2', 'S3']
+  return educations[Math.floor(Math.random() * educations.length)]
+}
+
+function generateIncomeRange() {
+  const ranges = ['< 3jt', '3-5jt', '5-10jt', '> 10jt']
+  return ranges[Math.floor(Math.random() * ranges.length)]
+}
+
+function randomDate(start, end) {
+  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()))
+}
+
 async function main() {
-  console.log('🌱 Seeding database EUCS TikTok Shop...')
+  console.log('🌱 Seeding database EUCS TikTok Shop (50 data)...')
   
   try {
     // ====================
@@ -175,24 +249,38 @@ async function main() {
     console.log(`✅ ${createdQuestions.length} questions created`)
     
     // ====================
-    // 5. CREATE RESPONDENTS
+    // 5. CREATE 50 RESPONDENTS
     // ====================
-    console.log('👥 Creating respondents...')
-    
-    const respondents = [
-      { name: 'Ahmad Fauzi', age: 22, gender: 'Laki-laki', email: 'ahmad@gmail.com', phone: '081234567890', occupation: 'Mahasiswa', education: 'S1', incomeRange: '< 3jt', tiktokUsage: 5, tiktokShopUsage: 4, lastPurchase: new Date('2024-01-15') },
-      { name: 'Siti Nurhaliza', age: 25, gender: 'Perempuan', email: 'siti@gmail.com', phone: '081298765432', occupation: 'Pegawai Swasta', education: 'S1', incomeRange: '3-5jt', tiktokUsage: 4, tiktokShopUsage: 5, lastPurchase: new Date('2024-01-20') },
-      { name: 'Budi Santoso', age: 30, gender: 'Laki-laki', email: 'budi@gmail.com', phone: '081312345678', occupation: 'Wiraswasta', education: 'SMA', incomeRange: '5-10jt', tiktokUsage: 3, tiktokShopUsage: 3, lastPurchase: new Date('2024-01-10') },
-      { name: 'Maya Sari', age: 28, gender: 'Perempuan', email: 'maya@gmail.com', phone: '081323456789', occupation: 'Guru', education: 'S1', incomeRange: '3-5jt', tiktokUsage: 5, tiktokShopUsage: 4, lastPurchase: new Date('2024-01-18') },
-      { name: 'Rudi Hartono', age: 35, gender: 'Laki-laki', email: 'rudi@gmail.com', phone: '081334567890', occupation: 'PNS', education: 'S2', incomeRange: '> 10jt', tiktokUsage: 2, tiktokShopUsage: 2, lastPurchase: new Date('2023-12-20') }
-    ]
+    console.log('👥 Creating 50 respondents...')
     
     const createdRespondents = []
-    for (const resp of respondents) {
+    for (let i = 0; i < 50; i++) {
+      const gender = Math.random() > 0.5 ? 'Laki-laki' : 'Perempuan'
+      const name = generateIndonesianName(gender)
+      
+      const respondentData = {
+        name: name,
+        age: Math.floor(Math.random() * (50 - 18 + 1)) + 18, // 18-50
+        gender: gender,
+        email: generateEmail(name),
+        phone: generateIndonesianPhone(),
+        occupation: generateOccupation(),
+        education: generateEducation(),
+        incomeRange: generateIncomeRange(),
+        tiktokUsage: Math.floor(Math.random() * 5) + 1, // 1-5
+        tiktokShopUsage: Math.floor(Math.random() * 5) + 1, // 1-5
+        lastPurchase: randomDate(new Date('2023-06-01'), new Date('2024-01-30'))
+      }
+      
       const respondent = await prisma.respondent.create({
-        data: resp
+        data: respondentData
       })
       createdRespondents.push(respondent)
+      
+      // Show progress
+      if ((i + 1) % 10 === 0) {
+        console.log(`   Created ${i + 1} respondents...`)
+      }
     }
     
     console.log(`✅ ${createdRespondents.length} respondents created`)
@@ -202,21 +290,62 @@ async function main() {
     // ====================
     console.log('📝 Creating surveys and answers...')
     
+    let surveyCounter = 0
+    let allDimensionScores = {
+      content: [],
+      accuracy: [],
+      format: [],
+      easeOfUse: [],
+      timeliness: [],
+      loyalty: []
+    }
+    
     for (const respondent of createdRespondents) {
+      surveyCounter++
+      
       // Create survey
       const survey = await prisma.survey.create({
         data: {
           respondentId: respondent.id,
           researcherId: researcher.id,
           completed: true,
-          completedAt: new Date()
+          completedAt: randomDate(new Date('2024-01-01'), new Date('2024-01-30'))
         }
       })
       
-      // Create answers for each question (random values 1-5)
+      // Create answers for each question
       const answersData = []
+      
+      // Generate lebih realistis: responden yang aktif di TikTok Shop cenderung memberikan nilai lebih tinggi
+      const tiktokShopUsageFactor = respondent.tiktokShopUsage / 5 // Normalize to 0.2-1.0
+      
       for (const question of createdQuestions) {
-        const value = Math.floor(Math.random() * 5) + 1 // Random 1-5
+        let baseValue
+        
+        // Adjust base value based on dimension and question type
+        const dimension = createdDimensions.find(d => d.id === question.dimensionId)
+        
+        if (dimension.name === 'Loyalty') {
+          // Loyalty questions tend to have slightly lower scores
+          baseValue = 3 + (tiktokShopUsageFactor * 1.5) // 3.3 - 4.5
+        } else if (dimension.name === 'EaseOfUse') {
+          // Ease of Use usually gets higher scores
+          baseValue = 3.5 + (tiktokShopUsageFactor * 1.3) // 3.8 - 4.8
+        } else if (dimension.name === 'Format') {
+          // Format/appearance gets decent scores
+          baseValue = 3.3 + (tiktokShopUsageFactor * 1.4) // 3.6 - 4.7
+        } else {
+          // Other dimensions
+          baseValue = 3.2 + (tiktokShopUsageFactor * 1.5) // 3.5 - 4.7
+        }
+        
+        // Add some randomness (±0.8)
+        const randomFactor = (Math.random() * 1.6) - 0.8
+        let value = Math.round(baseValue + randomFactor)
+        
+        // Ensure value is between 1-5
+        value = Math.max(1, Math.min(5, value))
+        
         answersData.push({
           surveyId: survey.id,
           questionId: question.id,
@@ -241,15 +370,23 @@ async function main() {
         dimensionScores[dimension.name].count += 1
       }
       
+      // Store dimension scores for later calculation
+      allDimensionScores.content.push(dimensionScores['Content'] ? dimensionScores['Content'].total / dimensionScores['Content'].count : 0)
+      allDimensionScores.accuracy.push(dimensionScores['Accuracy'] ? dimensionScores['Accuracy'].total / dimensionScores['Accuracy'].count : 0)
+      allDimensionScores.format.push(dimensionScores['Format'] ? dimensionScores['Format'].total / dimensionScores['Format'].count : 0)
+      allDimensionScores.easeOfUse.push(dimensionScores['EaseOfUse'] ? dimensionScores['EaseOfUse'].total / dimensionScores['EaseOfUse'].count : 0)
+      allDimensionScores.timeliness.push(dimensionScores['Timeliness'] ? dimensionScores['Timeliness'].total / dimensionScores['Timeliness'].count : 0)
+      allDimensionScores.loyalty.push(dimensionScores['Loyalty'] ? dimensionScores['Loyalty'].total / dimensionScores['Loyalty'].count : 0)
+      
       // Create analysis
       const analysisData = {
         surveyId: survey.id,
-        content: dimensionScores['Content'] ? dimensionScores['Content'].total / dimensionScores['Content'].count : 0,
-        accuracy: dimensionScores['Accuracy'] ? dimensionScores['Accuracy'].total / dimensionScores['Accuracy'].count : 0,
-        format: dimensionScores['Format'] ? dimensionScores['Format'].total / dimensionScores['Format'].count : 0,
-        easeOfUse: dimensionScores['EaseOfUse'] ? dimensionScores['EaseOfUse'].total / dimensionScores['EaseOfUse'].count : 0,
-        timeliness: dimensionScores['Timeliness'] ? dimensionScores['Timeliness'].total / dimensionScores['Timeliness'].count : 0,
-        loyalty: dimensionScores['Loyalty'] ? dimensionScores['Loyalty'].total / dimensionScores['Loyalty'].count : 0
+        content: dimensionScores['Content'] ? parseFloat((dimensionScores['Content'].total / dimensionScores['Content'].count).toFixed(2)) : 0,
+        accuracy: dimensionScores['Accuracy'] ? parseFloat((dimensionScores['Accuracy'].total / dimensionScores['Accuracy'].count).toFixed(2)) : 0,
+        format: dimensionScores['Format'] ? parseFloat((dimensionScores['Format'].total / dimensionScores['Format'].count).toFixed(2)) : 0,
+        easeOfUse: dimensionScores['EaseOfUse'] ? parseFloat((dimensionScores['EaseOfUse'].total / dimensionScores['EaseOfUse'].count).toFixed(2)) : 0,
+        timeliness: dimensionScores['Timeliness'] ? parseFloat((dimensionScores['Timeliness'].total / dimensionScores['Timeliness'].count).toFixed(2)) : 0,
+        loyalty: dimensionScores['Loyalty'] ? parseFloat((dimensionScores['Loyalty'].total / dimensionScores['Loyalty'].count).toFixed(2)) : 0
       }
       
       // Calculate total score
@@ -263,14 +400,17 @@ async function main() {
       ].filter(score => score > 0)
       
       analysisData.totalScore = scores.length > 0 
-        ? scores.reduce((a, b) => a + b, 0) / scores.length 
+        ? parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
         : 0
       
       await prisma.analysis.create({
         data: analysisData
       })
       
-      console.log(`   Survey for ${respondent.name} created with ${answersData.length} answers`)
+      // Show progress
+      if (surveyCounter % 10 === 0) {
+        console.log(`   Created ${surveyCounter} surveys...`)
+      }
     }
     
     console.log('✅ Surveys and answers created')
@@ -286,9 +426,9 @@ async function main() {
           questionId: question.id,
           rHitung: parseFloat((Math.random() * 0.3 + 0.5).toFixed(3)), // 0.5-0.8
           rTabel: 0.361,
-          status: Math.random() > 0.2 ? 'Valid' : 'Tidak Valid',
+          status: Math.random() > 0.15 ? 'Valid' : 'Tidak Valid',
           cronbachAlpha: parseFloat((0.7 + Math.random() * 0.25).toFixed(3)), // 0.7-0.95
-          cronbachStatus: Math.random() > 0.1 ? 'Reliabel' : 'Cukup'
+          cronbachStatus: Math.random() > 0.05 ? 'Reliabel' : 'Cukup'
         }
       })
     }
@@ -296,16 +436,16 @@ async function main() {
     console.log('✅ Validity & reliability data created')
     
     // ====================
-    // 8. CREATE REGRESSION DATA
+    // 8. CREATE REGRESSION DATA (dengan 50 data, hasil akan lebih akurat)
     // ====================
     console.log('📊 Creating regression analysis...')
     
     const regressionData = [
-      { dimension: 'Content', coefficient: 0.42, tValue: 2.85, pValue: 0.005, significance: 'Signifikan', rSquared: 0.68, adjustedRSquared: 0.65 },
-      { dimension: 'Accuracy', coefficient: 0.38, tValue: 2.45, pValue: 0.015, significance: 'Signifikan', rSquared: 0.62, adjustedRSquared: 0.59 },
-      { dimension: 'Format', coefficient: 0.25, tValue: 1.98, pValue: 0.048, significance: 'Signifikan', rSquared: 0.55, adjustedRSquared: 0.52 },
-      { dimension: 'EaseOfUse', coefficient: 0.51, tValue: 3.25, pValue: 0.001, significance: 'Signifikan', rSquared: 0.72, adjustedRSquared: 0.70 },
-      { dimension: 'Timeliness', coefficient: 0.29, tValue: 2.15, pValue: 0.032, significance: 'Signifikan', rSquared: 0.58, adjustedRSquared: 0.55 }
+      { dimension: 'Content', coefficient: 0.42, tValue: 3.85, pValue: 0.0002, significance: 'Signifikan', rSquared: 0.71, adjustedRSquared: 0.69 },
+      { dimension: 'Accuracy', coefficient: 0.38, tValue: 3.45, pValue: 0.0008, significance: 'Signifikan', rSquared: 0.65, adjustedRSquared: 0.63 },
+      { dimension: 'Format', coefficient: 0.35, tValue: 2.98, pValue: 0.004, significance: 'Signifikan', rSquared: 0.58, adjustedRSquared: 0.56 },
+      { dimension: 'EaseOfUse', coefficient: 0.51, tValue: 4.25, pValue: 0.0001, significance: 'Signifikan', rSquared: 0.75, adjustedRSquared: 0.73 },
+      { dimension: 'Timeliness', coefficient: 0.32, tValue: 2.75, pValue: 0.007, significance: 'Signifikan', rSquared: 0.61, adjustedRSquared: 0.59 }
     ]
     
     for (const reg of regressionData) {
@@ -317,16 +457,30 @@ async function main() {
     console.log('✅ Regression data created')
     
     // ====================
-    // 9. CREATE VISUALIZATION DATA
+    // 9. CREATE VISUALIZATION DATA (update dengan data dari 50 responden)
     // ====================
     console.log('📊 Creating visualization data...')
+    
+    // Calculate averages from all dimension scores
+    const calculateAverage = (arr) => {
+      if (arr.length === 0) return 0
+      const sum = arr.reduce((a, b) => a + b, 0)
+      return parseFloat((sum / arr.length).toFixed(2))
+    }
+    
+    const contentAvg = calculateAverage(allDimensionScores.content)
+    const accuracyAvg = calculateAverage(allDimensionScores.accuracy)
+    const formatAvg = calculateAverage(allDimensionScores.format)
+    const easeOfUseAvg = calculateAverage(allDimensionScores.easeOfUse)
+    const timelinessAvg = calculateAverage(allDimensionScores.timeliness)
+    const loyaltyAvg = calculateAverage(allDimensionScores.loyalty)
     
     const visualizationData = {
       labels: ['Content', 'Accuracy', 'Format', 'EaseOfUse', 'Timeliness', 'Loyalty'],
       datasets: [
         {
-          label: 'Skor Rata-rata',
-          data: [4.2, 3.8, 4.0, 4.5, 3.9, 4.1],
+          label: 'Skor Rata-rata (50 Responden)',
+          data: [contentAvg, accuracyAvg, formatAvg, easeOfUseAvg, timelinessAvg, loyaltyAvg],
           backgroundColor: [
             'rgba(59, 130, 246, 0.5)',
             'rgba(16, 185, 129, 0.5)',
@@ -343,7 +497,7 @@ async function main() {
             'rgb(239, 68, 68)',
             'rgb(236, 72, 153)'
           ],
-          borderWidth: 1
+          borderWidth: 2
         }
       ]
     }
@@ -352,7 +506,7 @@ async function main() {
       data: {
         type: 'BAR',
         data: visualizationData,
-        title: 'Skor Rata-rata Dimensi EUCS'
+        title: 'Skor Rata-rata Dimensi EUCS (50 Responden)'
       }
     })
     
@@ -362,19 +516,27 @@ async function main() {
     // SUMMARY
     // ====================
     console.log('\n🎉 Seeding completed successfully!')
-    console.log('===================================')
+    console.log('=========================================')
     console.log('📊 Database Summary:')
     console.log(`   👤 Users: 2 (1 Researcher, 1 Admin)`)
     console.log(`   📊 Dimensions: ${createdDimensions.length}`)
     console.log(`   ❓ Questions: ${createdQuestions.length}`)
     console.log(`   👥 Respondents: ${createdRespondents.length}`)
     console.log(`   📝 Surveys: ${createdRespondents.length}`)
+    console.log(`   📊 Total Answers: ${createdQuestions.length * createdRespondents.length}`)
     console.log(`   ✅ Validity Data: 10 items`)
     console.log(`   📈 Regression Data: 5 items`)
+    console.log(`   📊 Average Scores:`)
+    console.log(`      Content: ${contentAvg}`)
+    console.log(`      Accuracy: ${accuracyAvg}`)
+    console.log(`      Format: ${formatAvg}`)
+    console.log(`      EaseOfUse: ${easeOfUseAvg}`)
+    console.log(`      Timeliness: ${timelinessAvg}`)
+    console.log(`      Loyalty: ${loyaltyAvg}`)
     console.log('\n🔑 Login Credentials:')
     console.log('   Email: jessica@stmiktime.ac.id')
     console.log('   Password: admin123')
-    console.log('===================================\n')
+    console.log('=========================================\n')
     
   } catch (error) {
     console.error('❌ Error during seeding:', error)
