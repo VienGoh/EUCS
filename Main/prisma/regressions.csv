@@ -1,0 +1,6 @@
+"id","dimension","coefficient","tValue","pValue","significance","rSquared","adjustedRSquared","createdAt"
+"cmoecyq7j01aqf1jcqrq3uh93","Content",0.42,3.85,0.0002,"Signifikan",0.71,0.69,"2026-04-25T13:11:28.304Z"
+"cmoecyq7q01arf1jc4duehr4l","Accuracy",0.38,3.45,0.0008,"Signifikan",0.65,0.63,"2026-04-25T13:11:28.310Z"
+"cmoecyq7w01asf1jcefd9idgp","Format",0.35,2.98,0.004,"Signifikan",0.58,0.56,"2026-04-25T13:11:28.316Z"
+"cmoecyq8501atf1jc67hryfba","EaseOfUse",0.51,4.25,0.0001,"Signifikan",0.75,0.73,"2026-04-25T13:11:28.326Z"
+"cmoecyq8d01auf1jckudh3qbq","Timeliness",0.32,2.75,0.007,"Signifikan",0.61,0.59,"2026-04-25T13:11:28.334Z"

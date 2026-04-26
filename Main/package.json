@@ -24,6 +24,7 @@
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
     "file-saver": "^2.0.5",
+    "json2csv": "^6.0.0-alpha.2",
     "lodash": "^4.17.21",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.562.0",
@@ -45,6 +46,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@oclif/core": "^1.26.2",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/lodash": "^4.17.21",
@@ -52,6 +54,7 @@
     "@types/nodemailer": "^7.0.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "prisma-client-cli": "^0.1.1",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.19.2",
     "typescript": "^5"

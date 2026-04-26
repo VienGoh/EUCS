@@ -9,30 +9,45 @@ export default function LoginPage() {
   const [password, setPassword] = useState('password123')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (loading) return
+
     setLoading(true)
     setError('')
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    })
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      })
 
-    console.log('Login result:', result)
+      console.log('Login result:', result)
 
-    if (result?.error) {
-      setError('Login gagal. Periksa email dan password.')
+      if (!result) {
+        setError('Terjadi kesalahan. Coba lagi.')
+        return
+      }
+
+      if (result.error) {
+        setError('Email atau password salah')
+        return
+      }
+
+      // ✅ Pakai router.push (lebih Next.js way)
+      router.push(callbackUrl)
+    } catch (err) {
+      console.error(err)
+      setError('Terjadi error pada server')
+    } finally {
       setLoading(false)
-    } else if (result?.ok) {
-      // Redirect manual setelah login sukses
-      window.location.href = callbackUrl
     }
   }
 
@@ -40,7 +55,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-sm p-8 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-6 text-center">Login EUCS</h1>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 text-red-700 rounded border border-red-200">
             {error}
@@ -54,18 +69,18 @@ export default function LoginPage() {
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
-          
+
           <div className="mb-6">
             <input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -73,7 +88,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white p-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white p-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? 'Memproses...' : 'Masuk'}
           </button>
